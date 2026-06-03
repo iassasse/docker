@@ -1,0 +1,2 @@
+172.19.0.2
+db.books.insert({title: "book1"})
