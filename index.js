@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const app = express();
 const port = 4000;
 
@@ -6,6 +7,20 @@ const mongoose = require("mongoose");
 const redis = require("redis");
 
 app.use(express.json());
+
+// Custom CORS middleware (no external dependency needed)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Serve static files from the current folder
+app.use(express.static(__dirname));
 
 // =======================
 // DATA (JSON fallback)
@@ -16,26 +31,64 @@ let equipes = require("./equipe.json");
 // =======================
 // MONGODB
 // =======================
+const mongoUrl = process.env.MONGO_URI || "mongodb://root:example@mongo:27017";
 mongoose
-  .connect("mongodb://root:example@mongo:27017")
+  .connect(mongoUrl)
   .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log("MongoDB Error:", err));
+  .catch((err) => {
+    console.log(`Could not connect to MongoDB at ${mongoUrl}. Trying localhost...`);
+    mongoose
+      .connect("mongodb://root:example@localhost:27017")
+      .then(() => console.log("MongoDB Connected (localhost)"))
+      .catch((localErr) => {
+        console.log("No local MongoDB server found. Running app with JSON file fallback.");
+      });
+  });
 
 
 // =======================
 // REDIS
 // =======================
-const redisClient = redis.createClient({
-  url: "redis://redis:6379",
+const redisUrl = process.env.REDIS_URL || "redis://redis:6379";
+let redisClient = redis.createClient({
+  url: redisUrl,
 });
 
 redisClient.on("error", (err) => {
-  console.error("Redis Error:", err);
+  // Silent error logging to avoid flooding the terminal during local fallback
 });
 
+// A simple in-memory mock for local development when Redis is not running
+const redisMock = {
+  store: new Map(),
+  async connect() {
+    console.log("Using In-Memory Redis Mock (local fallback)");
+  },
+  async set(key, value) {
+    this.store.set(key, value);
+  },
+  async get(key) {
+    return this.store.get(key) || null;
+  },
+  on(event, callback) {}
+};
+
 (async () => {
-  await redisClient.connect();
-  console.log("Redis Connected");
+  try {
+    await redisClient.connect();
+    console.log("Redis Connected");
+  } catch (err) {
+    console.log(`Could not connect to Redis at ${redisUrl}. Trying localhost...`);
+    try {
+      redisClient = redis.createClient({ url: "redis://localhost:6379" });
+      redisClient.on("error", () => {});
+      await redisClient.connect();
+      console.log("Redis Connected (localhost)");
+    } catch (localErr) {
+      console.log("No local Redis server found. Falling back to in-memory Redis mock...");
+      redisClient = redisMock;
+    }
+  }
 })();
 
 
@@ -43,10 +96,14 @@ redisClient.on("error", (err) => {
 // ROUTES
 // =======================
 
-// ROOT (TEST + REDIS SET)
+// ROOT (TEST + REDIS SET + SERVE FRONTEND)
 app.get("/", async (req, res) => {
-  await redisClient.set("product", "product......!");
-  res.send("<h1>API is running 🚀</h1>");
+  try {
+    await redisClient.set("product", "product......!");
+  } catch (err) {
+    console.error("Redis set error:", err);
+  }
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Equipe Manager | Dashboard REST API</title>
+  <meta name="description" content="Dashboard moderne de gestion des équipes de football utilisant une API REST, Node.js, Express, MongoDB et Redis.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ambient background glow -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M12 8v8"/>
+          <path d="M8 12h8"/>
+        </svg>
+        <div class="logo-text">
+          <h1>Equipe<span>Manager</span></h1>
+          <p>Dashboard de l'API REST</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Search bar -->
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Rechercher une équipe ou un pays...">
+        </div>
+
+        <!-- View switches -->
+        <div class="view-toggle-container">
+          <button id="btn-view-grid" class="btn-toggle active" title="Vue en Grille">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+          </button>
+          <button id="btn-view-table" class="btn-toggle" title="Vue en Tableau">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Add Team CTA -->
+        <button id="btn-open-add-modal" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Ajouter une équipe
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <!-- Connection Status Panel -->
+      <section class="status-panel card">
+        <div class="status-indicator-wrapper">
+          <div class="status-indicator online" id="api-status-dot"></div>
+          <span class="status-text" id="api-status-text">Vérification de la connexion...</span>
+        </div>
+        <div class="api-info">
+          <span class="info-badge">Port: 4000</span>
+          <span class="info-badge">Docker: Actif</span>
+        </div>
+      </section>
+
+      <!-- Loading State -->
+      <div id="loading-state" class="loading-state">
+        <div class="spinner"></div>
+        <p>Récupération des données en cours...</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="error-state" class="error-state hidden">
+        <div class="error-icon-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+            <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/>
+            <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <h3>Erreur de connexion à l'API</h3>
+        <p id="error-message">Impossible de joindre le serveur Express sur le port 4000. Assurez-vous que les conteneurs Docker sont démarrés.</p>
+        <button id="btn-retry" class="btn btn-secondary">Réessayer</button>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-icon-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+            <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
+        </div>
+        <h3>Aucune équipe trouvée</h3>
+        <p>Aucune donnée ne correspond à votre recherche ou la base de données est vide.</p>
+      </div>
+
+      <!-- Content Views -->
+      <div id="content-area" class="content-area hidden">
+        <!-- Grid View -->
+        <div id="teams-grid" class="teams-grid"></div>
+
+        <!-- Table View -->
+        <div id="teams-table-wrapper" class="teams-table-wrapper hidden card">
+          <table class="teams-table">
+            <thead>
+              <tr>
+                <th class="col-id">ID</th>
+                <th class="col-name">Nom de l'équipe</th>
+                <th class="col-country">Pays</th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="teams-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>EquipeManager &copy; 2026 - Conçu pour l'intégration Docker, Node.js, Express, MongoDB et Redis</p>
+    </footer>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div id="team-modal" class="modal-overlay hidden">
+    <div class="modal card">
+      <div class="modal-header">
+        <h2 id="modal-title">Ajouter une équipe</h2>
+        <button id="btn-close-modal" class="btn-close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <form id="team-form">
+        <input type="hidden" id="team-id-input">
+        <div class="form-group">
+          <label for="team-name-input">Nom de l'équipe</label>
+          <input type="text" id="team-name-input" required placeholder="Ex: Real Madrid, FC Barcelone...">
+        </div>
+        <div class="form-group">
+          <label for="team-country-input">Pays d'origine</label>
+          <input type="text" id="team-country-input" required placeholder="Ex: Espagne, France, Angleterre...">
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-cancel-modal" class="btn btn-secondary">Annuler</button>
+          <button type="submit" id="btn-submit-modal" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
